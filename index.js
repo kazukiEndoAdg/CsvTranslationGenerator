@@ -1,7 +1,16 @@
+console.log('translation program has started');
+const langInfo = {
+  "ja": "JA",
+  "en": "EN",
+  "zh-CHS": "ZH",
+  "ko": "KO",
+};
+
 const fs = require("fs");
 const csv = require("csv-parser");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
 const yargs = require("yargs");
+const axios = require("axios");
 
 // コマンドライン引数の設定
 const argv = yargs
@@ -19,40 +28,86 @@ const argv = yargs
 const inputFilePath = argv.input;
 const outputFilePath = argv.output;
 
+  /**
+   * 翻訳処理
+   */
+  const translate = async (jaString, targetLanguage) => {
+    const config = {
+      headers: {
+        Authorization: '',
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/x-www-form-urlencoded',  
+      },
+    };
+    const params = {
+      text: jaString,
+      target_lang: langInfo[targetLanguage],
+    };
+
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        // ここで実際の翻訳結果を取得するか、テキストをコピーします。
+        await axios.post('https://api-free.deepl.com/v2/translate', params, config).then((res) => {
+          result = res.data.translations[0].text;
+          // console.log('translation result', result);
+          translatedText = result;
+        }).catch((err)=>{
+          console.log('error occurred when translating: ', err);
+        });
+
+        resolve(translatedText);
+      }, 1000); // 1秒待機
+    });
+  }
+
+  const translateToMultipleLanguages = async (text, targetLanguages) => {
+    console.log('text', text);
+    const translatedInformation = {};
+    translatedInformation['ja'] = text;
+  
+    for (const language of targetLanguages) {
+      const translation = await translate(text, language);
+      translatedInformation[language] = translation;
+    }
+    console.log('translation results' ,translatedInformation);
+    return translatedInformation;
+  };  
+
 const csvWriter = createCsvWriter({
   path: outputFilePath,
   header: [
-    { id: "JA", title: "ja" },
-    { id: "EN", title: "en" },
-    { id: "ZHCHS", title: "zh-CHS" },
-    { id: "ZHCHT", title: "zh-CHT" },
-    { id: "KO", title: "ko" },
+    { id: "ja", title: "ja" },
+    { id: "en", title: "en" },
+    { id: "zh-CHS", title: "zh-CHS" },
+    { id: "ko", title: "ko" },
   ],
+  append: true, // 追記モードを有効にする
 });
 
-const translations = [];
-
+// ヘッダーを出力
+// csvWriter.writeRecords(Object.keys(langInfo));
+// 翻訳&出力処理
 fs.createReadStream(inputFilePath)
   .pipe(csv())
-  .on("data", (row) => {
+  .on("data", async (row) => {
     // ここで翻訳処理を実装するか、テキストをコピーすることができます。
     // 以下はテキストをコピーする例です。
-
-    translations.push({
-      JA: row.text,
-      EN: row.text,
-      ZHCHS: row.text,
-      ZHCHT: row.text,
-      KO: row.text,
+    const translations = [];
+    const result = await translateToMultipleLanguages(row['ja'], Object.keys(langInfo).filter((lang) => lang !== 'ja'));
+    translations.push(result);
+    await csvWriter
+    .writeRecords(translations).then(()=>{
+      console.log(`Translation results saved to ${outputFilePath}`);
     });
   })
   .on("end", () => {
-    csvWriter
-      .writeRecords(translations)
-      .then(() => {
-        console.log(`Translation results saved to ${outputFilePath}`);
-      })
-      .catch((error) => {
-        console.error("Error writing CSV:", error);
-      });
-  });
+    // csvWriter
+    //   .writeRecords(translations)
+    //   .then(() => {
+    //     console.log(`Translation results saved to ${outputFilePath}`);
+    //   })
+    //   .catch((error) => {
+    //     console.error("Error writing CSV:", error);
+    //   });
+
+    });
