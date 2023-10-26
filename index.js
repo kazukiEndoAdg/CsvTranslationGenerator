@@ -1,11 +1,6 @@
 console.log('translation program has started');
-const langInfo = {
-  "ja": "JA",
-  "en": "EN",
-  "zh-CHS": "ZH",
-  "ko": "KO",
-};
 
+require('dotenv').config();
 const fs = require("fs");
 const csv = require("csv-parser");
 const createCsvWriter = require("csv-writer").createObjectCsvWriter;
@@ -25,6 +20,13 @@ const argv = yargs
   .help("h")
   .alias("h", "help").argv;
 
+  const langInfo = {
+    "ja": "JA",
+    "en": "EN",
+    "zh-CHS": "ZH",
+    "ko": "KO",
+  };
+  
 const inputFilePath = argv.input;
 const outputFilePath = argv.output;
 
@@ -34,7 +36,7 @@ const outputFilePath = argv.output;
   const translate = async (jaString, targetLanguage) => {
     const config = {
       headers: {
-        Authorization: '',
+        Authorization: process.env.DEEPL_API_KEY,
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/x-www-form-urlencoded',  
       },
@@ -46,10 +48,8 @@ const outputFilePath = argv.output;
 
     return new Promise((resolve) => {
       setTimeout(async () => {
-        // ここで実際の翻訳結果を取得するか、テキストをコピーします。
         await axios.post('https://api-free.deepl.com/v2/translate', params, config).then((res) => {
           result = res.data.translations[0].text;
-          // console.log('translation result', result);
           translatedText = result;
         }).catch((err)=>{
           console.log('error occurred when translating: ', err);
@@ -81,7 +81,7 @@ const csvWriter = createCsvWriter({
     { id: "zh-CHS", title: "zh-CHS" },
     { id: "ko", title: "ko" },
   ],
-  append: true, // 追記モードを有効にする
+  append: true, // 追記モード
 });
 
 // ヘッダーを出力
@@ -90,8 +90,6 @@ const csvWriter = createCsvWriter({
 fs.createReadStream(inputFilePath)
   .pipe(csv())
   .on("data", async (row) => {
-    // ここで翻訳処理を実装するか、テキストをコピーすることができます。
-    // 以下はテキストをコピーする例です。
     const translations = [];
     const result = await translateToMultipleLanguages(row['ja'], Object.keys(langInfo).filter((lang) => lang !== 'ja'));
     translations.push(result);
